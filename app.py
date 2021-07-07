@@ -69,8 +69,13 @@ if app_mode == "Full View":
         response = requests.get(f"{BASE_URI}/patients/{patient_id}").json()
         number_of_slices = int(response["number_of_slices"])
 
+        st_progress_bar = st.progress(0)
 
         for i in range(number_of_slices):
-            st.progress(i/number_of_slices)
+            st_progress_bar.progress(i/number_of_slices)
             response = requests.get(f"{BASE_URI}/patients/{patient_id}/{i+1}")
+            # unpack zip & load image
+        
+        st_progress_bar = st.progress(1)
+
         
