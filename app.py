@@ -32,7 +32,7 @@ BASE_URI = "https://drmaboule-ouh2vqtouq-ew.a.run.app"
 
 logger = logging.getLogger(__name__)
 
-app_mode = st.sidebar.selectbox( f"WELCOME DOC", [ "Explore", "Predict", "Full View", ],)
+app_mode = st.sidebar.selectbox( f"WELCOME DOC", [ "----", "Explore", "Predict", "Full View", ],)
 
 if app_mode == "Explore":
     st.subheader("Explore patient")
@@ -76,6 +76,6 @@ if app_mode == "Full View":
             response = requests.get(f"{BASE_URI}/patients/{patient_id}/{i+1}")
             # unpack zip & load image
         
-        st_progress_bar = st.progress(1)
+        st_progress_bar.progress(1)
 
         
