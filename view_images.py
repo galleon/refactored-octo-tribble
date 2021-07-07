@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -23,10 +24,36 @@ def get_slices(patient_id):
     number_of_slices = r['number_of_slices']
     return number_of_slices
 
+def get_image(patient_id, slice_number):
+    r = requests.get(url+'/'+patient_id+'/'+f'{slice_number}', allow_redirects=True)
+    open('test.zip', 'wb').write(r.content)
+    import shutil
+    shutil.unpack_archive('test.zip', "test")
+
+
+# def download_file(patient_id, slice_number):
+#     url_image = url+'/'+patient_id+'/'+f'{slice_number}'
+#     local_filename = url.split('/')[-1]
+#     r = requests.get(url, stream=True)
+#     with v as r:
+#         with open(test.tif, 'wb') as f:
+#             shutil.copyfileobj(r.raw, f)
+
+#     return local_filename
+
 
 patient_id = get_patient_id()
 number_of_slices = get_slices(patient_id)
 slice_number = st.slider('Select a line count', 1, number_of_slices, 1)
+
+if st.button('Download'):
+    st.write('Clicked!!!')
+    image = get_image(patient_id, slice_number)
+    print(image)
+else:
+    st.write('Not clicked')
+#download_file(patient_id, slice_number)
+
 
 
 
