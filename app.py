@@ -21,6 +21,7 @@ except ImportError:
     from typing_extensions import Literal  # type: ignore
 
 import av
+from base64 import b64decode
 import io
 import cv2
 import matplotlib.pyplot as plt
@@ -31,7 +32,7 @@ from PIL import Image
 
 HERE = Path(__file__).parent
 BASE_URI = "https://drmaboule-ouh2vqtouq-ew.a.run.app"
-# BASE_URI = "http://127.0.0.1:8000"
+LOCAL_URI = "http://127.0.0.1:8000"
 
 logger = logging.getLogger(__name__)
 
@@ -70,17 +71,17 @@ waiting_messages = [
 
 
 app_mode = st.sidebar.selectbox(
-    f"WELCOME DOC",
+    f"WELCOME DOC MABOULE",
     [
         "----",
-        "Explore",
-        "Predict",
-        "Full View",
+        "Validate New Model",
+        "Diagnose",
+        "3D View",
     ],
 )
 
-if app_mode == "Explore":
-    st.subheader("Explore patient")
+if app_mode == "Validate New Model":
+    st.subheader("Validate New Model")
     response = requests.get(f"{BASE_URI}/patients").json()
     patient_list = response["patients"]
     patient_list.insert(0, "Patient ID")
@@ -105,7 +106,34 @@ if app_mode == "Explore":
         pred_path = f"{tmpdir}/{patient_id}_{slice_id}_mask.tif"
         image = Image.open(image_path).convert("RGB")
         mask = Image.open(mask_path).convert("RGB")
-        pred = Image.open(pred_path).convert("RGB")
+
+        # response = requests.post(f"{BASE_URI}/predict", data=image)
+        # print(response.content)
+        files = {"file": open(image_path, "rb")}
+
+        response = requests.post(
+            f"{LOCAL_URI}/predict", files=files
+        )  # , headers=headers)
+        # response = requests.post(f"{BASE_URI}/predict", data=data)
+
+        d = response.json()
+
+        for key, value in d.items():
+            # print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
+            base64_bytes = base64.b64decode(value)
+            img_data = io.BytesIO(base64_bytes)
+
+            # import ipdb
+            # ipdb.set_trace()
+            img = Image.open(img_data)
+            if key:
+                img.save(key)
+
+            # import ipdb
+            # ipdb.set_trace()
+            mask_p = Image.open(key).convert("RGB")
+
+        # pred = Image.open(pred_path).convert("RGB")
 
         col1, col2, col3 = st.beta_columns(3)
         image_title = '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Brain MRI</p>'
@@ -116,29 +144,56 @@ if app_mode == "Explore":
         col2.image(mask, use_column_width=True)
         pred_title = '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Predicted Mask</p>'
         col3.markdown(pred_title, unsafe_allow_html=True)
-        col3.image(pred, use_column_width=True)
+        col3.image(mask_p, use_column_width=True)
 
         shutil.rmtree(tmpdir)
 
 
-if app_mode == "Predict":
-    st.subheader("Analyze new image")
+if app_mode == "Diagnose":
+    st.subheader("Analyze Patient Data")
     image_file = st.file_uploader("")
     if image_file is not None:
         data = image_file.read()
-        st.image(Image.open(image_file))
+        # st.image(Image.open(image_file))
 
-        response = requests.post(f"{BASE_URI}/predict", data=data)
+        files = {"file": image_file.getvalue()}
+        response = requests.post(
+            f"{LOCAL_URI}/predict", files=files
+        )  # , headers=headers)
+        # response = requests.post(f"{BASE_URI}/predict", data=data)
 
-        try:
-            print(response.status_code, response.ok)
-            print(response.content)
-        except requests.exceptions.RequestException:
-            print(response.text)
+        d = response.json()
+
+        for key, value in d.items():
+            # print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
+            base64_bytes = base64.b64decode(value)
+            img_data = io.BytesIO(base64_bytes)
+
+            # import ipdb
+            # ipdb.set_trace()
+            img = Image.open(img_data)
+            if key:
+                img.save(key)
+
+            # import ipdb
+            # ipdb.set_trace()
+            mask_p = Image.open(key).convert("RGB")
+
+        col1, col2 = st.beta_columns(2)
+        col1.markdown(
+            '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Brain MRI</p>',
+            unsafe_allow_html=True,
+        )
+        col1.image(Image.open(image_file), use_column_width=True)
+        col2.markdown(
+            '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Diagnostic</p>',
+            unsafe_allow_html=True,
+        )
+        col2.image(mask_p, use_column_width=True)
 
 
-if app_mode == "Full View":
-    st.subheader("Full View")
+if app_mode == "3D View":
+    st.subheader("3D View")
     response = requests.get(f"{BASE_URI}/patients").json()
     patient_list = response["patients"]
     patient_id = st.selectbox(
@@ -178,6 +233,8 @@ if app_mode == "Full View":
 
         st_progress_bar.progress(1.0)
         st_waiting_message.empty()
+
+        st_progress_bar.empty()
 
         r, c = 128, 128
 
