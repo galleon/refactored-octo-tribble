@@ -82,12 +82,43 @@ app_mode = st.sidebar.selectbox(
 if app_mode == "Explore":
     st.subheader("Explore patient")
     response = requests.get(f"{BASE_URI}/patients").json()
+    patient_list = response["patients"]
+    patient_list.insert(0, "Patient ID")
     patient_id = st.selectbox("", response["patients"])
-    if patient_id is not None:
+
+    if patient_id != "Patient ID":
         response = requests.get(f"{BASE_URI}/patients/{patient_id}").json()
         number_of_slices = int(response["number_of_slices"])
         slice_id = st.slider("SLICE #", min_value=1, max_value=number_of_slices + 1)
-        response = requests.get(f"{BASE_URI}/patients/{patient_id}/{slice_id}")
+        response = requests.get(
+            f"{BASE_URI}/patients/{patient_id}/{slice_id}", allow_redirects=True
+        )
+
+        tmpdir = tempfile.TemporaryDirectory(suffix=None, prefix="tmp", dir=None).name
+        os.mkdir(tmpdir)
+        file_path = f"{tmpdir}/tmp.zip"
+        open(file_path, "wb").write(response.content)
+        shutil.unpack_archive(file_path, tmpdir)
+
+        image_path = f"{tmpdir}/{patient_id}_{slice_id}.tif"
+        mask_path = f"{tmpdir}/{patient_id}_{slice_id}_mask.tif"
+        pred_path = f"{tmpdir}/{patient_id}_{slice_id}_mask.tif"
+        image = Image.open(image_path).convert("RGB")
+        mask = Image.open(mask_path).convert("RGB")
+        pred = Image.open(pred_path).convert("RGB")
+
+        col1, col2, col3 = st.beta_columns(3)
+        image_title = '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Brain MRI</p>'
+        col1.markdown(image_title, unsafe_allow_html=True)
+        col1.image(image, use_column_width=True)
+        mask_title = '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Original Mask</p>'
+        col2.markdown(mask_title, unsafe_allow_html=True)
+        col2.image(mask, use_column_width=True)
+        pred_title = '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Predicted Mask</p>'
+        col3.markdown(pred_title, unsafe_allow_html=True)
+        col3.image(pred, use_column_width=True)
+
+        shutil.rmtree(tmpdir)
 
 
 if app_mode == "Predict":
@@ -109,7 +140,10 @@ if app_mode == "Predict":
 if app_mode == "Full View":
     st.subheader("Full View")
     response = requests.get(f"{BASE_URI}/patients").json()
-    patient_id = st.selectbox("", response["patients"])
+    patient_list = response["patients"]
+    patient_id = st.selectbox(
+        "", patient_list, index=patient_list.index("TCGA_HT_7884_19980913")
+    )
     if patient_id is not None:
         response = requests.get(f"{BASE_URI}/patients/{patient_id}").json()
         number_of_slices = int(response["number_of_slices"])
@@ -141,7 +175,7 @@ if app_mode == "Full View":
             if i % 5 == 0:
                 st_waiting_message.markdown(random.choice(waiting_messages))
 
-        st_progress_bar.progress(1)
+        st_progress_bar.progress(1.0)
         st_waiting_message.empty()
 
         r, c = 256, 256
