@@ -1,15 +1,11 @@
-import asyncio
 import base64
 import logging
 import logging.handlers
-import queue
 import os
 import random
-import threading
 import requests
 import shutil
 import tempfile
-import urllib.request
 from pathlib import Path
 from typing import List, NamedTuple
 
@@ -20,10 +16,8 @@ try:
 except ImportError:
     from typing_extensions import Literal  # type: ignore
 
-import av
 from base64 import b64decode
 import io
-import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
@@ -35,6 +29,38 @@ BASE_URI = "https://drmaboule-ouh2vqtouq-ew.a.run.app"
 LOCAL_URI = "http://127.0.0.1:8000"
 
 logger = logging.getLogger(__name__)
+
+
+def tversky(y_true, y_pred, smooth=1.0e-7, alpha=0.7, beta=0.3):
+    """
+    Compute the Tversky score.
+    The Tversky index, named after Amos Tversky, is an asymmetric similarity measure on sets
+    that compares a prediction to a ground truth.
+    :y_true: the ground truth mask
+    :y_pred: the predicted mask
+    :return: The tversky score
+    :rtype: float
+    :Example:
+    >>> tversky([0, 0, 0], [1, 1, 1])
+    smooth / (smooth + 3*alpha)
+    >>> tversky([1, 1, 1], [1, 1, 1]))
+    1
+    .. seealso:: tensorflow.keras.metrics.MeanIoU
+                 https://en.wikipedia.org/wiki/Tversky_index
+    .. warning:: smooth needs to adapt to the size of the mask
+    .. note:: Setting alpha=beta=0.5 produces the Sørensen–Dice coefficient.
+              alpha=beta=1 produces the Tanimoto coefficient aka Jaccard index
+    .. todo:: Better understand how to set the parameters
+    """
+    y_true_pos = y_true.flatten()
+    y_pred_pos = y_pred.flatten()
+    true_pos = np.sum(y_true_pos * y_pred_pos)
+    false_neg = np.sum(y_true_pos * (1 - y_pred_pos))
+    false_pos = np.sum((1 - y_true_pos) * y_pred_pos)
+
+    return (true_pos + smooth) / (
+        true_pos + alpha * false_neg + beta * false_pos + smooth
+    )
 
 
 def rgb2yuv(rgb_image):
@@ -68,6 +94,13 @@ waiting_messages = [
     "Our premium plan is faster",
     "Feeding unicorns...",
 ]
+
+st.set_page_config(
+    page_title="Dr Maboule",
+    page_icon=":brain:",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 
 app_mode = st.sidebar.selectbox(
@@ -105,21 +138,16 @@ if app_mode == "Validate New Model":
         mask_path = f"{tmpdir}/{patient_id}_{slice_id}_mask.tif"
         pred_path = f"{tmpdir}/{patient_id}_{slice_id}_mask.tif"
         image = Image.open(image_path).convert("RGB")
-        mask = Image.open(mask_path).convert("RGB")
+        mask = Image.open(mask_path).convert("L")
 
-        # response = requests.post(f"{BASE_URI}/predict", data=image)
-        # print(response.content)
         files = {"file": open(image_path, "rb")}
 
-        response = requests.post(
-            f"{LOCAL_URI}/predict", files=files
-        )  # , headers=headers)
-        # response = requests.post(f"{BASE_URI}/predict", data=data)
+        response = requests.post(f"{BASE_URI}/predict", files=files)
 
         d = response.json()
 
         for key, value in d.items():
-            # print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
+            print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
             base64_bytes = base64.b64decode(value)
             img_data = io.BytesIO(base64_bytes)
 
@@ -131,7 +159,25 @@ if app_mode == "Validate New Model":
 
             # import ipdb
             # ipdb.set_trace()
-            mask_p = Image.open(key).convert("RGB")
+            mask_p = Image.open(key).convert("L")
+
+        # np_masp = np.squeeze(np.array(mask))
+        # np_mask_p = np.squeeze(np.array(mask_p))
+        # np_0 = np.zeros((256, 256))
+
+        # print(np_masp.shape, np_mask_p.shape, np_0.shape)
+
+        # rgb = np.stack(
+        #     [
+        #         np.squeeze(np.array(mask)) / 255,
+        #         np.squeeze(np.array(mask_p)) / 255,
+        #         np.zeros((256, 256)),
+        #     ],
+        #     axis=2,
+        # )
+
+        # print(rgb.shape, rgb.min(), rgb.max())
+        # print(rgb[:, :, 0].max(), rgb[:, :, 1].max(), rgb[:, :, 2].max())
 
         # pred = Image.open(pred_path).convert("RGB")
 
@@ -146,6 +192,16 @@ if app_mode == "Validate New Model":
         col3.markdown(pred_title, unsafe_allow_html=True)
         col3.image(mask_p, use_column_width=True)
 
+        # st.image(Image.fromarray(rgb, "RGB"))
+        mask_p_binary = np.squeeze(np.array(mask_p)) / 255 >= 1.0
+        mask_p_binary = np.float32(mask_p_binary)
+        mask_binary = np.squeeze(np.array(mask)) / 255 >= 1.0
+        mask_binary = np.float32(mask_binary)
+
+        score = np.round(tversky(mask_binary, mask_p_binary), 2)
+
+        st.warning(f"The current score is:  {score}")
+
         shutil.rmtree(tmpdir)
 
 
@@ -157,15 +213,12 @@ if app_mode == "Diagnose":
         # st.image(Image.open(image_file))
 
         files = {"file": image_file.getvalue()}
-        response = requests.post(
-            f"{LOCAL_URI}/predict", files=files
-        )  # , headers=headers)
-        # response = requests.post(f"{BASE_URI}/predict", data=data)
+        response = requests.post(f"{BASE_URI}/predict", files=files)
 
         d = response.json()
 
         for key, value in d.items():
-            # print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
+            print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
             base64_bytes = base64.b64decode(value)
             img_data = io.BytesIO(base64_bytes)
 
