@@ -1,27 +1,19 @@
-import base64
+from base64 import b64decode
+import io
 import logging
-import logging.handlers
 import os
 import random
 import requests
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List, NamedTuple
 
-import plotly.graph_objects as go
 
-try:
-    from typing import Literal
-except ImportError:
-    from typing_extensions import Literal  # type: ignore
-
-from base64 import b64decode
-import io
-import matplotlib.pyplot as plt
 import numpy as np
-import streamlit as st
 from PIL import Image
+import plotly.graph_objects as go
+import streamlit as st
+import streamlit.components.v1 as components
 
 
 HERE = Path(__file__).parent
