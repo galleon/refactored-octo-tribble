@@ -42,6 +42,33 @@ def rgb2yuv(rgb_image):
     )
 
 
+# Credits to https://gist.github.com/meain/6440b706a97d2dd71574769517e7ed32
+waiting_messages = [
+    "You seem like a nice person...",
+    "Coffee at my place, tommorow at 10A.M. - don't be late!",
+    "Work, work...",
+    "Patience! This is difficult, you know...",
+    "Discovering new ways of making you wait...",
+    "Your time is very important to us. Please wait while we ignore you...",
+    "Time flies like an arrow; fruit flies like a banana",
+    "Two men walked into a bar; the third ducked...",
+    "Sooooo... Have you seen my vacation photos yet?",
+    "Sorry we are busy catching em' all, we're done soon",
+    "TODO: Insert elevator music",
+    "Still faster than Windows update",
+    "Composer hack: Waiting for reqs to be fetched is less frustrating if you add -vvv to your command.",
+    "Please wait while the minions do their work",
+    "Grabbing extra minions",
+    "Doing the heavy lifting",
+    "We're working very Hard .... Really",
+    "Waking up the minions",
+    "You are number 2843684714 in the queue",
+    "Please wait while we serve other customers...",
+    "Our premium plan is faster",
+    "Feeding unicorns...",
+]
+
+
 app_mode = st.sidebar.selectbox(
     f"WELCOME DOC",
     [
@@ -91,6 +118,7 @@ if app_mode == "Full View":
         values = np.empty((256, 256, number_of_slices))
 
         st_progress_bar = st.progress(0)
+        st_waiting_message = st.empty()
 
         for i in range(number_of_slices):
             st_progress_bar.progress(i / number_of_slices)
@@ -108,28 +136,54 @@ if app_mode == "Full View":
             # load image
             slice = Image.open(f"{tmpdir}/{patient_id}_{i+1}.tif").convert("RGB")
             values[:, :, i] = rgb2yuv(slice)
+            # Delete file
+            shutil.rmtree(tmpdir)
+            if i % 5 == 0:
+                st_waiting_message.markdown(random.choice(waiting_messages))
 
         st_progress_bar.progress(1)
+        st_waiting_message.empty()
 
         r, c = 256, 256
 
+        X, Y, Z = np.mgrid[0:256, 0:256, 0:number_of_slices]
+
         fig = go.Figure(
-            frames=[
-                go.Frame(
-                    data=go.Surface(
-                        z=(k) * np.ones((r, c)),
-                        surfacecolor=values[:, :, number_of_slices - k - 1],
-                        cmin=0,
-                        cmax=255,
-                    ),
-                    name=str(k),
-                )
-                for k in range(number_of_slices)
-            ]
+            data=go.Volume(
+                x=X.flatten(),
+                y=Y.flatten(),
+                z=Z.flatten(),
+                value=values.flatten(),
+                opacity=0.2,
+                isomin=0,
+                isomax=255,
+                colorscale="RdBu",
+            )
         )
 
+        fig.update_layout(
+            title="Slices in volumetric data",
+            width=600,
+            height=600,
+        )
+
+        # fig = go.Figure(
+        #     frames=[
+        #         go.Frame(
+        #             data=go.Surface(
+        #                 z=(k) * np.ones((r, c)),
+        #                 surfacecolor=values[:, :, number_of_slices - k - 1],
+        #                 cmin=0,
+        #                 cmax=255,
+        #             ),
+        #             name=str(k),
+        #         )
+        #         for k in range(number_of_slices)
+        #     ]
+        # )
+
         # Add data to be displayed before animation starts
-        #fig.add_trace(
+        # fig.add_trace(
         #    go.Surface(
         #        z=(number_of_slices - k - 1) * np.ones((r, c)),
         #        surfacecolor=values[:, :, number_of_slices - k - 1],
@@ -137,64 +191,64 @@ if app_mode == "Full View":
         #        cmax=255,
         #        # colorbar=dict(thickness=20, ticklen=4)
         #    )
-        #)
+        # )
 
-        def frame_args(duration):
-            return {
-                "frame": {"duration": duration},
-                "mode": "immediate",
-                "fromcurrent": True,
-                "transition": {"duration": duration, "easing": "linear"},
-            }
+        # def frame_args(duration):
+        #     return {
+        #         "frame": {"duration": duration},
+        #         "mode": "immediate",
+        #         "fromcurrent": True,
+        #         "transition": {"duration": duration, "easing": "linear"},
+        #     }
 
-        sliders = [
-            {
-                "pad": {"b": 10, "t": 60},
-                "len": 0.9,
-                "x": 0.1,
-                "y": 0,
-                "steps": [
-                    {
-                        "args": [[f.name], frame_args(0)],
-                        "label": str(k),
-                        "method": "animate",
-                    }
-                    for k, f in enumerate(fig.frames)
-                ],
-            }
-        ]
+        # sliders = [
+        #     {
+        #         "pad": {"b": 10, "t": 60},
+        #         "len": 0.9,
+        #         "x": 0.1,
+        #         "y": 0,
+        #         "steps": [
+        #             {
+        #                 "args": [[f.name], frame_args(0)],
+        #                 "label": str(k),
+        #                 "method": "animate",
+        #             }
+        #             for k, f in enumerate(fig.frames)
+        #         ],
+        #     }
+        # ]
 
         # Layout
-        fig.update_layout(
-            title="Slices in volumetric data",
-            width=600,
-            height=600,
-            scene=dict(
-                zaxis=dict(range=[0, number_of_slices], autorange=False),
-                aspectratio=dict(x=1, y=1, z=1),
-            ),
-            updatemenus=[
-                {
-                    "buttons": [
-                        {
-                            "args": [None, frame_args(50)],
-                            "label": "&#9654;",  # play symbol
-                            "method": "animate",
-                        },
-                        {
-                            "args": [[None], frame_args(0)],
-                            "label": "&#9724;",  # pause symbol
-                            "method": "animate",
-                        },
-                    ],
-                    "direction": "left",
-                    "pad": {"r": 10, "t": 70},
-                    "type": "buttons",
-                    "x": 0.1,
-                    "y": 0,
-                }
-            ],
-            sliders=sliders,
-        )
+        # fig.update_layout(
+        #     title="Slices in volumetric data",
+        #     width=600,
+        #     height=600,
+        #     scene=dict(
+        #         zaxis=dict(range=[0, number_of_slices], autorange=False),
+        #         aspectratio=dict(x=1, y=1, z=1),
+        #     ),
+        #     updatemenus=[
+        #         {
+        #             "buttons": [
+        #                 {
+        #                     "args": [None, frame_args(50)],
+        #                     "label": "&#9654;",  # play symbol
+        #                     "method": "animate",
+        #                 },
+        #                 {
+        #                     "args": [[None], frame_args(0)],
+        #                     "label": "&#9724;",  # pause symbol
+        #                     "method": "animate",
+        #                 },
+        #             ],
+        #             "direction": "left",
+        #             "pad": {"r": 10, "t": 70},
+        #             "type": "buttons",
+        #             "x": 0.1,
+        #             "y": 0,
+        #         }
+        #     ],
+        #     sliders=sliders,
+        # )
 
         st.plotly_chart(fig)
