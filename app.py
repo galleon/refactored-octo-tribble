@@ -42,6 +42,33 @@ def rgb2yuv(rgb_image):
     )
 
 
+# Credits to https://gist.github.com/meain/6440b706a97d2dd71574769517e7ed32
+waiting_messages = [
+    "You seem like a nice person...",
+    "Coffee at my place, tommorow at 10A.M. - don't be late!",
+    "Work, work...",
+    "Patience! This is difficult, you know...",
+    "Discovering new ways of making you wait...",
+    "Your time is very important to us. Please wait while we ignore you...",
+    "Time flies like an arrow; fruit flies like a banana",
+    "Two men walked into a bar; the third ducked...",
+    "Sooooo... Have you seen my vacation photos yet?",
+    "Sorry we are busy catching em' all, we're done soon",
+    "TODO: Insert elevator music",
+    "Still faster than Windows update",
+    "Composer hack: Waiting for reqs to be fetched is less frustrating if you add -vvv to your command.",
+    "Please wait while the minions do their work",
+    "Grabbing extra minions",
+    "Doing the heavy lifting",
+    "We're working very Hard .... Really",
+    "Waking up the minions",
+    "You are number 2843684714 in the queue",
+    "Please wait while we serve other customers...",
+    "Our premium plan is faster",
+    "Feeding unicorns...",
+]
+
+
 app_mode = st.sidebar.selectbox(
     f"WELCOME DOC",
     [
@@ -55,12 +82,43 @@ app_mode = st.sidebar.selectbox(
 if app_mode == "Explore":
     st.subheader("Explore patient")
     response = requests.get(f"{BASE_URI}/patients").json()
+    patient_list = response["patients"]
+    patient_list.insert(0, "Patient ID")
     patient_id = st.selectbox("", response["patients"])
-    if patient_id is not None:
+
+    if patient_id != "Patient ID":
         response = requests.get(f"{BASE_URI}/patients/{patient_id}").json()
         number_of_slices = int(response["number_of_slices"])
         slice_id = st.slider("SLICE #", min_value=1, max_value=number_of_slices + 1)
-        response = requests.get(f"{BASE_URI}/patients/{patient_id}/{slice_id}")
+        response = requests.get(
+            f"{BASE_URI}/patients/{patient_id}/{slice_id}", allow_redirects=True
+        )
+
+        tmpdir = tempfile.TemporaryDirectory(suffix=None, prefix="tmp", dir=None).name
+        os.mkdir(tmpdir)
+        file_path = f"{tmpdir}/tmp.zip"
+        open(file_path, "wb").write(response.content)
+        shutil.unpack_archive(file_path, tmpdir)
+
+        image_path = f"{tmpdir}/{patient_id}_{slice_id}.tif"
+        mask_path = f"{tmpdir}/{patient_id}_{slice_id}_mask.tif"
+        pred_path = f"{tmpdir}/{patient_id}_{slice_id}_mask.tif"
+        image = Image.open(image_path).convert("RGB")
+        mask = Image.open(mask_path).convert("RGB")
+        pred = Image.open(pred_path).convert("RGB")
+
+        col1, col2, col3 = st.beta_columns(3)
+        image_title = '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Brain MRI</p>'
+        col1.markdown(image_title, unsafe_allow_html=True)
+        col1.image(image, use_column_width=True)
+        mask_title = '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Original Mask</p>'
+        col2.markdown(mask_title, unsafe_allow_html=True)
+        col2.image(mask, use_column_width=True)
+        pred_title = '<p style="font-family:sans-serif;text-align: center; color:Black; font-size: 20px;">Predicted Mask</p>'
+        col3.markdown(pred_title, unsafe_allow_html=True)
+        col3.image(pred, use_column_width=True)
+
+        shutil.rmtree(tmpdir)
 
 
 if app_mode == "Predict":
@@ -82,15 +140,19 @@ if app_mode == "Predict":
 if app_mode == "Full View":
     st.subheader("Full View")
     response = requests.get(f"{BASE_URI}/patients").json()
-    patient_id = st.selectbox("", response["patients"])
+    patient_list = response["patients"]
+    patient_id = st.selectbox(
+        "", patient_list, index=patient_list.index("TCGA_HT_7884_19980913")
+    )
     if patient_id is not None:
         response = requests.get(f"{BASE_URI}/patients/{patient_id}").json()
         number_of_slices = int(response["number_of_slices"])
 
         # Placeholder for storing images
-        values = np.empty((256, 256, number_of_slices))
+        values = np.empty((128, 128, number_of_slices))
 
         st_progress_bar = st.progress(0)
+        st_waiting_message = st.empty()
 
         for i in range(number_of_slices):
             st_progress_bar.progress(i / number_of_slices)
@@ -107,11 +169,38 @@ if app_mode == "Full View":
             shutil.unpack_archive(file_path, tmpdir)
             # load image
             slice = Image.open(f"{tmpdir}/{patient_id}_{i+1}.tif").convert("RGB")
+            slice = slice.resize((128, 128), Image.ANTIALIAS)
             values[:, :, i] = rgb2yuv(slice)
+            # Delete file
+            shutil.rmtree(tmpdir)
+            if i % 5 == 0:
+                st_waiting_message.markdown(random.choice(waiting_messages))
 
-        st_progress_bar.progress(1)
+        st_progress_bar.progress(1.0)
+        st_waiting_message.empty()
 
-        r, c = 256, 256
+        r, c = 128, 128
+
+        X, Y, Z = np.mgrid[0:128, 0:128, 0:number_of_slices]
+
+        fig = go.Figure(
+            data=go.Volume(
+                x=X.flatten(),
+                y=Y.flatten(),
+                z=Z.flatten(),
+                value=values.flatten(),
+                opacity=0.2,
+                isomin=0,
+                isomax=255,
+                colorscale="RdBu",
+            )
+        )
+
+        # fig.update_layout(
+        #     title="Slices in volumetric data",
+        #     width=600,
+        #     height=600,
+        # )
 
         fig = go.Figure(
             frames=[
@@ -129,15 +218,15 @@ if app_mode == "Full View":
         )
 
         # Add data to be displayed before animation starts
-        #fig.add_trace(
-        #    go.Surface(
-        #        z=(number_of_slices - k - 1) * np.ones((r, c)),
-        #        surfacecolor=values[:, :, number_of_slices - k - 1],
-        #        cmin=0,
-        #        cmax=255,
-        #        # colorbar=dict(thickness=20, ticklen=4)
-        #    )
-        #)
+        fig.add_trace(
+            go.Surface(
+                z=(number_of_slices - 10 - 1) * np.ones((r, c)),
+                surfacecolor=values[:, :, number_of_slices - 10 - 1],
+                cmin=0,
+                cmax=255,
+                # colorbar=dict(thickness=20, ticklen=4)
+            )
+        )
 
         def frame_args(duration):
             return {
@@ -155,7 +244,7 @@ if app_mode == "Full View":
                 "y": 0,
                 "steps": [
                     {
-                        "args": [[f.name], frame_args(0)],
+                        "args": [[f.name], frame_args(2)],
                         "label": str(k),
                         "method": "animate",
                     }
