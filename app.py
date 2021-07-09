@@ -105,6 +105,14 @@ app_mode = st.sidebar.selectbox(
     ],
 )
 
+st.sidebar.info(
+    "This an open source project and you are very welcome to **contribute** your awesome "
+    "comments, questions, resources and apps as "
+    "[issues](https://github.com/MarcSkovMadsen/awesome-streamlit/issues) of or "
+    "[pull requests](https://github.com/MarcSkovMadsen/awesome-streamlit/pulls) "
+    "to the [source code](https://github.com/MarcSkovMadsen/awesome-streamlit). "
+)
+
 if app_mode == "Validate New Model":
     st.subheader("Validate New Model")
     response = requests.get(f"{BASE_URI}/patients").json()
@@ -140,7 +148,7 @@ if app_mode == "Validate New Model":
 
         for key, value in d.items():
             print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
-            base64_bytes = base64.b64decode(value)
+            base64_bytes = b64decode(value)
             img_data = io.BytesIO(base64_bytes)
 
             # import ipdb
@@ -211,7 +219,7 @@ if app_mode == "Diagnose":
 
         for key, value in d.items():
             print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
-            base64_bytes = base64.b64decode(value)
+            base64_bytes = b64decode(value)
             img_data = io.BytesIO(base64_bytes)
 
             # import ipdb
