@@ -196,6 +196,7 @@ def footer():
     layout(*myargs)
 
 
+st.sidebar.title("Contribute")
 st.sidebar.info(
     "This an open source project and you are very welcome to **contribute** your awesome "
     "comments, questions, resources and apps as "
@@ -203,6 +204,29 @@ st.sidebar.info(
     "[pull requests](https://github.com/galleon/refactored-octo-tribble/pulls) "
     "to the [source code](https://github.com/galleon/refactored-octo-tribble). "
 )
+st.sidebar.title("About")
+
+st.sidebar.write(
+    f"""
+    <div class='st-ae st-af st-ag st-ah st-ai st-aj st-ak st-al st-am st-bb st-ao st-ap st-aq st-ar st-as st-at st-au st-av st-aw st-ax st-ay st-az st-b9 st-b1 st-b2 st-b3 st-b4 st-b5 st-b6'>
+        <img src='https://avatars.githubusercontent.com/u/5470001?s=200&v=4' width=50 class='logo-wagon'>
+        <span class='text-presentation'>This app was developped during batch-633.</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+CSS = """
+.logo-wagon {
+    margin-right: 5px;
+}
+.text-presentation {
+    font-size: 16px;
+    color: #1E6777;
+}
+"""
+st.write(f"<style>{CSS}</style>", unsafe_allow_html=True)
+
 
 footer()
 
