@@ -95,35 +95,67 @@ st.set_page_config(
 )
 
 
+patient_dict = {
+    "Darth Vader": "TCGA_HT_7473_19970826",
+    "The Joker": "TCGA_HT_7690_19960312",
+    "Hannibal Lecter": "TCGA_DU_6401_19831001",
+    "Gollum": "TCGA_HT_7473_19970826",
+    "Lord Voldemort": "TCGA_HT_7690_19960312",
+    "Palpatine": "TCGA_DU_6401_19831001",
+    "Dr Jekyll": "TCGA_HT_7473_19970826",
+    "Frankenstein": "TCGA_HT_7690_19960312",
+}
+
 app_mode = st.sidebar.selectbox(
     f"WELCOME DOC MABOULE",
     [
         "----",
         "Validate New Model",
         "Diagnose",
-        "3D View",
+        "Pre Surgery Analysis",
     ],
 )
+
+
+def get_patient_list(the_list):
+    tmp_list = the_list.copy()
+    for k in patient_dict.keys():
+        tmp_list.insert(0, k)
+
+    tmp_list.insert(0, "Patient ID")
+
+    return tmp_list
+
+
+def get_patient_id(list_id: str):
+    if list_id in patient_dict.keys():
+        return patient_dict[list_id]
+    return list_id
+
 
 st.sidebar.info(
     "This an open source project and you are very welcome to **contribute** your awesome "
     "comments, questions, resources and apps as "
-    "[issues](https://github.com/MarcSkovMadsen/awesome-streamlit/issues) of or "
-    "[pull requests](https://github.com/MarcSkovMadsen/awesome-streamlit/pulls) "
-    "to the [source code](https://github.com/MarcSkovMadsen/awesome-streamlit). "
+    "[issues](https://github.com/galleon/refactored-octo-tribble/issues) of or "
+    "[pull requests](https://github.com/galleon/refactored-octo-tribble/pulls) "
+    "to the [source code](https://github.com/galleon/refactored-octo-tribble). "
 )
 
 if app_mode == "Validate New Model":
     st.subheader("Validate New Model")
+
     response = requests.get(f"{BASE_URI}/patients").json()
-    patient_list = response["patients"]
-    patient_list.insert(0, "Patient ID")
-    patient_id = st.selectbox("", response["patients"])
+    # Build fake patient list
+    patient_list = get_patient_list(response["patients"])
+    # Select patient id
+    patient_id = st.selectbox("", patient_list)
+    # Get actual patient id
+    patient_id = get_patient_id(patient_id)
 
     if patient_id != "Patient ID":
         response = requests.get(f"{BASE_URI}/patients/{patient_id}").json()
         number_of_slices = int(response["number_of_slices"])
-        slice_id = st.slider("SLICE #", min_value=1, max_value=number_of_slices + 1)
+        slice_id = st.slider("SLICE #", min_value=1, max_value=number_of_slices)
         response = requests.get(
             f"{BASE_URI}/patients/{patient_id}/{slice_id}", allow_redirects=True
         )
@@ -147,7 +179,7 @@ if app_mode == "Validate New Model":
         d = response.json()
 
         for key, value in d.items():
-            print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
+            # print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
             base64_bytes = b64decode(value)
             img_data = io.BytesIO(base64_bytes)
 
@@ -218,7 +250,7 @@ if app_mode == "Diagnose":
         d = response.json()
 
         for key, value in d.items():
-            print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
+            # print(f"key: {key}\nlen: {len(value)}\nvalue: {value[:50]}")
             base64_bytes = b64decode(value)
             img_data = io.BytesIO(base64_bytes)
 
@@ -245,14 +277,19 @@ if app_mode == "Diagnose":
         col2.image(mask_p, use_column_width=True)
 
 
-if app_mode == "3D View":
-    st.subheader("3D View")
+if app_mode == "Pre Surgery Analysis":
+    st.subheader("Pre Surgery Analysis")
+
     response = requests.get(f"{BASE_URI}/patients").json()
-    patient_list = response["patients"]
-    patient_id = st.selectbox(
-        "", patient_list, index=patient_list.index("TCGA_HT_7884_19980913")
-    )
-    if patient_id is not None:
+    # Build fake patient list
+
+    patient_list = get_patient_list(response["patients"])
+    # Select patient id
+    patient_id = st.selectbox("", patient_list)
+    # Get actual patient id
+    patient_id = get_patient_id(patient_id)
+
+    if patient_id != "Patient ID":
         response = requests.get(f"{BASE_URI}/patients/{patient_id}").json()
         number_of_slices = int(response["number_of_slices"])
 
