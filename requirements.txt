@@ -1,3 +1,4 @@
+htbuilder
 numpy==1.21.0
 Pillow
 plotly

@@ -8,6 +8,22 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from htbuilder import (
+    HtmlElement,
+    div,
+    ul,
+    li,
+    br,
+    hr,
+    a,
+    p,
+    img,
+    styles,
+    classes,
+    fonts,
+)
+from htbuilder.units import percent, px
+from htbuilder.funcs import rgba, rgb
 
 import numpy as np
 from PIL import Image
@@ -133,6 +149,53 @@ def get_patient_id(list_id: str):
     return list_id
 
 
+def layout(*args):
+    style = """
+    <style>
+        MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        .stApp { bottom: 60px; }
+    </style>
+    """
+
+    style_div = styles(
+        position="fixed",
+        right=0,
+        bottom=0,
+        margin=px(0, 15, 0, 0),
+        text_align="center",
+        opacity=0.5,
+    )
+
+    body = p()
+    foot = div(style=style_div)(body)
+
+    st.markdown(style, unsafe_allow_html=True)
+
+    for arg in args:
+        if isinstance(arg, str):
+            body(arg)
+        elif isinstance(arg, HtmlElement):
+            body(arg)
+
+    st.markdown(str(foot), unsafe_allow_html=True)
+
+
+def image(src_as_string, **style):
+    return img(src=src_as_string, style=styles(**style))
+
+
+def link(link, text, **style):
+    return a(_href=link, _target="_blank", style=styles(**style))(text)
+
+
+def footer():
+    myargs = [
+        "Made with ♥️ in Bordeaux",
+    ]
+    layout(*myargs)
+
+
 st.sidebar.info(
     "This an open source project and you are very welcome to **contribute** your awesome "
     "comments, questions, resources and apps as "
@@ -140,6 +203,8 @@ st.sidebar.info(
     "[pull requests](https://github.com/galleon/refactored-octo-tribble/pulls) "
     "to the [source code](https://github.com/galleon/refactored-octo-tribble). "
 )
+
+footer()
 
 if app_mode == "Validate New Model":
     st.subheader("Validate New Model")
